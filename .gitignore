@@ -1,0 +1,13 @@
+# Sensitive Environment Variables (Never commit API keys!)
+.env
+.env.*
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# System files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,57 @@
+/* CyberSafe Custom Styles & Accessibility Enhancements */
+
+/* Font size presets for high accessibility */
+body.font-normal {
+  font-size: 16px;
+}
+body.font-large {
+  font-size: 19px;
+}
+body.font-xlarge {
+  font-size: 22px;
+}
+
+/* Ensure high contrast and clear focus indicators */
+*:focus-visible {
+  outline: 3px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+  font-family: 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* High readability line-height */
+p, li {
+  line-height: 1.7;
+}
+
+/* Button click tactile animations */
+button:active {
+  transform: scale(0.98);
+}
+
+/* Custom badge glow */
+.badge-emergency {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
+
+/* Certificate print styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #certificate-print-area, #certificate-print-area * {
+    visibility: visible;
+  }
+  #certificate-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+  }
+}

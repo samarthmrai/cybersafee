@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CyberSafe — Public Cyber Safety & Digital Fraud Awareness Portal</title>
+  <meta name="description" content="Public-friendly cyber safety portal designed for students, senior citizens, rural communities, and beginners. Available in English, Kannada, and Hindi. No login required.">
+  <meta name="theme-color" content="#1e3a8a">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+
+  <!-- Google Fonts for English, Kannada (ಕನ್ನಡ), and Hindi (हिंदी) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;600;700;900&family=Noto+Sans+Kannada:wght@400;600;700;900&family=Noto+Sans:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans', 'Noto Sans Kannada', 'Noto Sans Devanagari', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- React 18 & ReactDOM 18 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="./src/styles/main.css">
+</head>
+<body class="font-normal bg-slate-100 text-slate-800">
+  <!-- React Mount Point -->
+  <div id="root"></div>
+
+  <!-- Data Sources -->
+  <script src="./src/data/translations.js"></script>
+  <script src="./src/data/scamsData.js"></script>
+  <script src="./src/data/simulatorData.js"></script>
+  <script src="./src/data/quizData.js"></script>
+  <script src="./src/data/festivalsData.js"></script>
+  <script src="./src/data/videosData.js"></script>
+  <script src="./src/data/articlesData.js"></script>
+  <script src="./src/data/checklistData.js"></script>
+
+  <!-- Utilities & Engines -->
+  <script src="./src/utils/checker.js"></script>
+  <script src="./src/utils/chatbotEngine.js"></script>
+
+  <!-- UI Components -->
+  <script src="./src/components/Navbar.jsx"></script>
+  <script src="./src/components/EmergencyBanner.jsx"></script>
+  <script src="./src/components/HomeDashboard.jsx"></script>
+  <script src="./src/components/LearnSection.jsx"></script>
+  <script src="./src/components/Simulator.jsx"></script>
+  <script src="./src/components/QuizSection.jsx"></script>
+  <script src="./src/components/EmergencyGuide.jsx"></script>
+  <script src="./src/components/FestivalAwareness.jsx"></script>
+  <script src="./src/components/MessageChecker.jsx"></script>
+  <script src="./src/components/ChecklistSection.jsx"></script>
+  <script src="./src/components/Chatbot.jsx"></script>
+  <script src="./src/components/VideosSection.jsx"></script>
+  <script src="./src/components/ArticlesSection.jsx"></script>
+  <script src="./src/components/Footer.jsx"></script>
+  <script src="./src/App.jsx"></script>
+
+  <!-- Mount Application -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var rootElement = document.getElementById("root");
+      if (rootElement && window.CyberSafeApp) {
+        var root = ReactDOM.createRoot(rootElement);
+        root.render(React.createElement(window.CyberSafeApp));
+      }
+    });
+  </script>
+</body>
+</html>
