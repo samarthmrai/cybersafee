@@ -3,7 +3,7 @@ window.CyberSafeComponents = window.CyberSafeComponents || {};
 
 window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
   var lang = props.lang;
-  var checker = window.CyberMessageChecker;
+  var checker = window.CyberMessageChecker || {};
   var samples = checker.sampleMessages || [];
 
   var [inputText, setInputText] = React.useState("");
@@ -11,8 +11,10 @@ window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
 
   var handleRunAnalysis = function(textToAnalyze) {
     var text = textToAnalyze !== undefined ? textToAnalyze : inputText;
-    var result = checker.analyze(text);
-    setAnalysis(result);
+    if (checker.analyze) {
+      var result = checker.analyze(text);
+      setAnalysis(result);
+    }
   };
 
   var handleLoadSample = function(sample) {
@@ -23,6 +25,42 @@ window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
   var handleClear = function() {
     setInputText("");
     setAnalysis(null);
+  };
+
+  // Helper for title text
+  var getStatusTitle = function() {
+    if (!analysis) return "";
+    if (analysis.level === "DANGEROUS") {
+      if (lang === "kn") return "ಅತ್ಯಂತ ಅಪಾಯಕಾರಿ ವಂಚನೆಯ ಸಂದೇಶ!";
+      if (lang === "hi") return "अत्यधिक खतरनाक धोखाधड़ी का संदेश!";
+      return "High-Risk Fraud / Scam Detected!";
+    }
+    if (analysis.level === "SUSPICIOUS") {
+      if (lang === "kn") return "ಅನುಮಾನಾಸ್ಪದ ಸಂದೇಶ — ಎಚ್ಚರಿಕೆ ವಹಿಸಿ!";
+      if (lang === "hi") return "संदिग्ध संदेश — सावधानी बरतें!";
+      return "Suspicious Message — Exercise Caution!";
+    }
+    if (lang === "kn") return "ಯಾವುದೇ ಸ್ಪಷ್ಟ ವಂಚನೆಯ ಲಕ್ಷಣ ಕಂಡುಬಂದಿಲ್ಲ";
+    if (lang === "hi") return "कोई सीधा खतरा नहीं पाया गया";
+    return "No Obvious Scam Signals Detected";
+  };
+
+  // Helper for advice text
+  var getStatusAdvice = function() {
+    if (!analysis) return "";
+    if (analysis.level === "DANGEROUS") {
+      if (lang === "kn") return "ಈ ಸಂದೇಶದಲ್ಲಿರುವ ಲಿಂಕ್ ಅನ್ನು ಎಂದಿಗೂ ಕ್ಲಿಕ್ ಮಾಡಬೇಡಿ ಅಥವಾ ನೀಡಿರುವ ನಂಬರ್‌ಗೆ ಕರೆ ಮಾಡಬೇಡಿ. ಇದನ್ನು ತಕ್ಷಣವೇ ಬ್ಲಾಕ್ ಮಾಡಿ.";
+      if (lang === "hi") return "इस मैसेज में आए किसी भी लिंक पर क्लिक न करें और न ही दिए गए नंबर पर फोन करें। इसे तुरंत ब्लॉक करें।";
+      return "Do NOT click any link or call the number in this message. Delete, block, and report immediately.";
+    }
+    if (analysis.level === "SUSPICIOUS") {
+      if (lang === "kn") return "ಈ ಸಂದೇಶದಲ್ಲಿ ಕೆಲವು ಸಂಶಯಾಸ್ಪದ ಅಂಶಗಳಿವೆ. ಅಧಿಕೃತ ಆಪ್ ಮೂಲಕ ಪರಿಶೀಲಿಸದೆ ಯಾವುದೇ ಕ್ರಮ ಕೈಗೊಳ್ಳಬೇಡಿ.";
+      if (lang === "hi") return "इस संदेश में कुछ संदिग्ध बातें पाई गई हैं। आधिकारिक स्रोत से जांचे बिना कोई कदम न उठाएं।";
+      return "This message exhibits questionable patterns. Independently verify with the organization's official website.";
+    }
+    if (lang === "kn") return "ಈ ಸಂದೇಶದಲ್ಲಿ ಸ್ಪಷ್ಟ ವಂಚನೆಯ ಅಂಶಗಳಿಲ್ಲ. ಆದಾಗ್ಯೂ ಯಾವುದೇ ಬ್ಯಾಂಕ್ OTP ಅಥವಾ PIN ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಬೇಡಿ.";
+    if (lang === "hi") return "यह सामान्य मैसेज प्रतीत होता है। फिर भी कभी किसी के साथ अपना OTP या पिन साझा न करें।";
+    return "While no common scam triggers were matched, always remember never to disclose OTPs or UPI PINs to anyone.";
   };
 
   return React.createElement(
@@ -76,7 +114,7 @@ window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
               onClick: function() { handleLoadSample(s); },
               className: "px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all border border-slate-200"
             },
-            s.name[lang] || s.name.en
+            s.name ? (s.name[lang] || s.name.en) : s.id
           );
         })
       )
@@ -157,32 +195,24 @@ window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
             React.createElement(
               "h3",
               { className: "font-black text-lg sm:text-xl" },
-              analysis.level === "DANGEROUS"
-                ? (lang === "kn" ? "ಅತ್ಯಂತ ಅಪಾಯಕಾರಿ ವಂಚನೆಯ ಸಂದೇಶ!" : (lang === "hi" ? "अत्यधिक खतरनाक धोखाधड़ी का संदेश!" : "High-Risk Fraud / Scam Detected!"))
-                : (analysis.level === "SUSPICIOUS"
-                    ? (lang === "kn" ? "ಅನುಮಾನಾಸ್ಪದ ಸಂದೇಶ — ಎಚ್ಚರಿಕೆ ವಹಿಸಿ!" : (lang === "hi" ? "संदिग्ध संदेश — सावधानी बरतें!" : "Suspicious Message — Exercise Caution!"))
-                    : (lang === "kn" ? "ಯಾವುದೇ ಸ್ಪಷ್ಟ ವಂಚನೆಯ ಲಕ್ಷಣ ಕಂಡುಬಂದಿಲ್ಲ" : (lang === "hi" ? "कोई सीधा खतरा नहीं पाया गया" : "No Obvious Scam Signals Detected"))
+              getStatusTitle()
             ),
             React.createElement(
               "p",
               { className: "text-xs font-bold opacity-80" },
-              "Threat Score: " + analysis.score + "/100 • Flags Triggered: " + analysis.count
+              "Threat Score: " + analysis.score + "/100 • Flags Triggered: " + (analysis.count || 0)
             )
           )
         ),
         React.createElement(
           "p",
           { className: "text-sm sm:text-base leading-relaxed mt-2" },
-          analysis.level === "DANGEROUS"
-            ? (lang === "kn" ? "ಈ ಸಂದೇಶದಲ್ಲಿರುವ ಲಿಂಕ್ ಅನ್ನು ಎಂದಿಗೂ ಕ್ಲಿಕ್ ಮಾಡಬೇಡಿ ಅಥವಾ ನೀಡಿರುವ ನಂಬರ್‌ಗೆ ಕರೆ ಮಾಡಬೇಡಿ. ಇದನ್ನು ತಕ್ಷಣವೇ ಬ್ಲಾಕ್ ಮಾಡಿ." : (lang === "hi" ? "इस मैसेज में आए किसी भी लिंक पर क्लिक न करें और न ही दिए गए नंबर पर फोन करें। इसे तुरंत ब्लॉक करें।" : "Do NOT click any link or call the number in this message. Delete, block, and report immediately."))
-            : (analysis.level === "SUSPICIOUS"
-                ? (lang === "kn" ? "ಈ ಸಂದೇಶದಲ್ಲಿ ಕೆಲವು ಸಂಶಯಾಸ್ಪದ ಅಂಶಗಳಿವೆ. ಅಧಿಕೃತ ಆಪ್ ಮೂಲಕ ಪರಿಶೀಲಿಸದೆ ಯಾವುದೇ ಕ್ರಮ ಕೈಗೊಳ್ಳಬೇಡಿ." : (lang === "hi" ? "इस संदेश में कुछ संदिग्ध बातें पाई गई हैं। आधिकारिक स्रोत से जांचे बिना कोई कदम न उठाएं।" : "This message exhibits questionable patterns. Independently verify with the organization's official website."))
-                : (lang === "kn" ? "ಈ ಸಂದೇಶದಲ್ಲಿ ಸ್ಪಷ್ಟ ವಂಚನೆಯ ಅಂಶಗಳಿಲ್ಲ. ಆದಾಗ್ಯೂ ಯಾವುದೇ ಬ್ಯಾಂಕ್ OTP ಅಥವಾ PIN ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಬೇಡಿ." : (lang === "hi" ? "यह सामान्य मैसेज प्रतीत होता है। फिर भी कभी किसी के साथ अपना OTP या पिन साझा न करें।" : "While no common scam triggers were matched, always remember never to disclose OTPs or UPI PINs to anyone."))
+          getStatusAdvice()
         )
       ),
 
       // Matched Red Flags Breakdown
-      analysis.matchedRules.length > 0 && React.createElement(
+      analysis.matchedRules && analysis.matchedRules.length > 0 && React.createElement(
         "div",
         { className: "bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-4" },
         React.createElement(
@@ -195,6 +225,8 @@ window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
           "div",
           { className: "space-y-3" },
           analysis.matchedRules.map(function(rule) {
+            var ruleLabel = rule.label ? (rule.label[lang] || rule.label.en) : rule.id;
+            var ruleExplanation = rule.explanation ? (rule.explanation[lang] || rule.explanation.en) : "";
             return React.createElement(
               "div",
               { key: rule.id, className: "bg-slate-50 border border-slate-200 rounded-2xl p-4" },
@@ -206,9 +238,9 @@ window.CyberSafeComponents.MessageChecker = function MessageChecker(props) {
                   { className: "text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full " + (rule.severity === "CRITICAL" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800") },
                   rule.severity
                 ),
-                React.createElement("p", { className: "font-black text-slate-900 text-sm sm:text-base" }, rule.label[lang] || rule.label.en)
+                React.createElement("p", { className: "font-black text-slate-900 text-sm sm:text-base" }, ruleLabel)
               ),
-              React.createElement("p", { className: "text-xs sm:text-sm text-slate-600 leading-relaxed mt-1" }, rule.explanation[lang] || rule.explanation.en)
+              React.createElement("p", { className: "text-xs sm:text-sm text-slate-600 leading-relaxed mt-1" }, ruleExplanation)
             );
           })
         )
