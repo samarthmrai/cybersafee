@@ -397,6 +397,86 @@ def check_phone_number(request: PhoneCheckRequest):
         )
 
 
+class ScamReportRequest(BaseModel):
+    phone_number: str
+    reason: str = "Other"
+
+
+@app.post("/api/report-number")
+def report_scam_number(request: ScamReportRequest):
+
+    if db is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Firebase database is unavailable."
+        )
+
+    phone_number = normalize_phone_number(request.phone_number)
+
+    if not phone_number:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a valid 10-digit phone number."
+        )
+
+    reason = request.reason.strip()
+
+    if not reason or len(reason) > 200:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a valid report reason."
+        )
+
+    try:
+        collection = db.collection("scam_numbers")
+
+        existing = list(
+            collection
+            .where("phone_number", "==", phone_number)
+            .limit(1)
+            .stream()
+        )
+
+        if existing:
+            document = existing[0]
+            old_data = document.to_dict() or {}
+            report_count = int(old_data.get("report_count", 0)) + 1
+
+            document.reference.update({
+                "report_count": firestore.Increment(1),
+                "status": "suspicious",
+                "reason": reason,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            })
+
+        else:
+            report_count = 1
+
+            collection.add({
+                "phone_number": phone_number,
+                "report_count": report_count,
+                "status": "suspicious",
+                "reason": reason,
+                "created_at": firestore.SERVER_TIMESTAMP,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            })
+
+        return {
+            "success": True,
+            "phone_number": phone_number,
+            "status": "suspicious",
+            "report_count": report_count,
+            "message": "Thank you! Your scam report has been submitted."
+        }
+
+    except Exception as e:
+        print(f"[Scam Report Error] {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to save the scam report."
+        )
+
 # --------------------------------------------------
 # CYBERMITRA CHAT ENDPOINT
 # --------------------------------------------------
