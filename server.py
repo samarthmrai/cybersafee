@@ -530,6 +530,55 @@ def get_community_reports():
 # CYBERMITRA CHAT ENDPOINT
 # --------------------------------------------------
 
+import hashlib
+
+
+class DeviceTokenRequest(BaseModel):
+    token: str
+
+
+@app.post("/api/register-device")
+def register_device(request: DeviceTokenRequest):
+
+    if db is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Firebase database is unavailable."
+        )
+
+    token = request.token.strip()
+
+    if not token or len(token) > 4096:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Firebase device token."
+        )
+
+    try:
+        token_id = hashlib.sha256(
+            token.encode("utf-8")
+        ).hexdigest()
+
+        db.collection("fcm_tokens").document(token_id).set({
+            "token": token,
+            "platform": "android",
+            "active": True,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return {
+            "success": True,
+            "message": "Device registered successfully."
+        }
+
+    except Exception as e:
+        print(f"[Device Registration Error] {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to register device."
+        )
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
 
