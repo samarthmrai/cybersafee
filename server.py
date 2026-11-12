@@ -476,7 +476,56 @@ def report_scam_number(request: ScamReportRequest):
             status_code=500,
             detail="Unable to save the scam report."
         )
+@app.get("/api/reports")
+def get_community_reports():
 
+    if db is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Firebase database is unavailable."
+        )
+
+    try:
+        documents = (
+            db.collection("scam_numbers")
+            .order_by(
+                "updated_at",
+                direction=firestore.Query.DESCENDING
+            )
+            .limit(20)
+            .stream()
+        )
+
+        reports = []
+
+        for document in documents:
+            data = document.to_dict() or {}
+            number = data.get("phone_number", "")
+
+            reports.append({
+                "phone_number": (
+                    "******" + number[-4:]
+                    if len(number) >= 4
+                    else "Hidden"
+                ),
+                "reason": data.get("reason", "Not specified"),
+                "report_count": data.get("report_count", 0),
+                "status": "Community reported (unverified)"
+            })
+
+        return {
+            "success": True,
+            "total": len(reports),
+            "reports": reports
+        }
+
+    except Exception as e:
+        print(f"[Community Reports Error] {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to load community reports."
+        )
 # --------------------------------------------------
 # CYBERMITRA CHAT ENDPOINT
 # --------------------------------------------------
