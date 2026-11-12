@@ -2,12 +2,13 @@
 """
 CyberSafe Secure AI Backend Server
 Serves the CyberSafe frontend, CyberMitra chatbot,
-and Firestore-powered scam number detection.
+Firestore-powered scam detection and Firebase push notifications.
 """
 
 import os
 import re
 import json
+import hashlib
 import urllib3
 import requests
 import firebase_admin
@@ -15,7 +16,7 @@ import firebase_admin
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, messaging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +24,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 
-# Disable insecure request warnings for existing Gemini configuration.
 urllib3.disable_warnings()
 
 
@@ -39,6 +39,7 @@ if ENV_PATH.exists():
     with open(ENV_PATH, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
+
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
@@ -62,9 +63,11 @@ db = None
 firebase_error = None
 
 try:
+
     if os.path.isfile(FIREBASE_KEY_PATH):
 
         if not firebase_admin._apps:
+
             firebase_credential = credentials.Certificate(
                 FIREBASE_KEY_PATH
             )
@@ -76,11 +79,15 @@ try:
         print("[Firebase] Firestore connected successfully.")
 
     else:
+
         firebase_error = "Firebase service account file not found."
+
         print("[Firebase] Service account file not found.")
 
 except Exception as e:
+
     firebase_error = str(e)
+
     print(f"[Firebase Error] {e}")
 
 
@@ -90,7 +97,7 @@ except Exception as e:
 
 app = FastAPI(
     title="CyberSafe AI Backend",
-    version="2.0.0"
+    version="3.0.0"
 )
 
 app.add_middleware(
@@ -119,6 +126,15 @@ class ChatRequest(BaseModel):
 
 class PhoneCheckRequest(BaseModel):
     phone_number: str
+
+
+class ScamReportRequest(BaseModel):
+    phone_number: str
+    reason: str = "Other"
+
+
+class DeviceTokenRequest(BaseModel):
+    token: str
 
 
 # --------------------------------------------------
@@ -194,11 +210,15 @@ def generate_offline_fallback(
 ) -> Dict[str, Any]:
 
     lower = user_text.lower()
-    is_emergency = bool(EMERGENCY_PATTERN.search(lower))
+
+    is_emergency = bool(
+        EMERGENCY_PATTERN.search(lower)
+    )
 
     if is_emergency:
 
         if language == "kn":
+
             reply = (
                 "🚨 ತುರ್ತು ಕ್ರಮ:\n\n"
                 "1. ತಕ್ಷಣ 1930 ಗೆ ಕರೆ ಮಾಡಿ.\n"
@@ -208,6 +228,7 @@ def generate_offline_fallback(
             )
 
         elif language == "hi":
+
             reply = (
                 "🚨 तुरंत कार्रवाई करें:\n\n"
                 "1. तुरंत 1930 पर कॉल करें।\n"
@@ -217,6 +238,7 @@ def generate_offline_fallback(
             )
 
         else:
+
             reply = (
                 "🚨 ACT IMMEDIATELY:\n\n"
                 "1. Call India's Cyber Helpline 1930 immediately.\n"
@@ -226,6 +248,7 @@ def generate_offline_fallback(
             )
 
     elif "qr" in lower:
+
         reply = (
             "📷 QR CODE SAFETY RULE:\n\n"
             "Scanning a QR code or entering your UPI PIN "
@@ -238,6 +261,7 @@ def generate_offline_fallback(
         or "cbi" in lower
         or "police" in lower
     ):
+
         reply = (
             "⚖️ Digital Arrest is a scam.\n\n"
             "Police and government agencies do not conduct "
@@ -250,6 +274,7 @@ def generate_offline_fallback(
         or "telegram" in lower
         or "task" in lower
     ):
+
         reply = (
             "💼 Be careful of fake part-time job offers.\n\n"
             "Scammers may ask you to deposit money to unlock "
@@ -257,6 +282,7 @@ def generate_offline_fallback(
         )
 
     elif language == "kn":
+
         reply = (
             "ನಮಸ್ಕಾರ! ನಾನು CyberMitra.\n\n"
             "ನಿಮ್ಮ OTP ಅಥವಾ UPI PIN ಅನ್ನು ಯಾರೊಂದಿಗೂ ಹಂಚಿಕೊಳ್ಳಬೇಡಿ. "
@@ -264,6 +290,7 @@ def generate_offline_fallback(
         )
 
     elif language == "hi":
+
         reply = (
             "नमस्ते! मैं CyberMitra हूं।\n\n"
             "अपना OTP या UPI PIN किसी के साथ साझा न करें। "
@@ -271,6 +298,7 @@ def generate_offline_fallback(
         )
 
     else:
+
         reply = (
             "Hello! I am CyberMitra, your cyber safety guide.\n\n"
             "Never share your OTP or UPI PIN. "
@@ -293,12 +321,11 @@ def normalize_phone_number(phone_number: str) -> str:
 
     digits = re.sub(r"\D", "", phone_number)
 
-    # Handle Indian country code.
     if len(digits) == 12 and digits.startswith("91"):
         digits = digits[2:]
 
-    # Only accept a 10-digit Indian mobile number.
     if len(digits) != 10:
+
         raise HTTPException(
             status_code=400,
             detail="Please enter a valid 10-digit Indian phone number."
@@ -331,6 +358,7 @@ def health_check():
 def check_phone_number(request: PhoneCheckRequest):
 
     if db is None:
+
         raise HTTPException(
             status_code=503,
             detail="Scam number database is temporarily unavailable."
@@ -344,7 +372,6 @@ def check_phone_number(request: PhoneCheckRequest):
 
         collection = db.collection("scam_numbers")
 
-        # Find an exact matching phone number.
         results = (
             collection
             .where("phone_number", "==", phone_number)
@@ -389,6 +416,7 @@ def check_phone_number(request: PhoneCheckRequest):
         raise
 
     except Exception as e:
+
         print(f"[Firestore Error] {e}")
 
         raise HTTPException(
@@ -397,37 +425,142 @@ def check_phone_number(request: PhoneCheckRequest):
         )
 
 
-class ScamReportRequest(BaseModel):
-    phone_number: str
-    reason: str = "Other"
+# --------------------------------------------------
+# FIREBASE PUSH NOTIFICATION SENDER
+# --------------------------------------------------
 
+def send_scam_alerts():
+
+    if db is None:
+        print("[FCM] Firestore unavailable. Alerts skipped.")
+        return
+
+    try:
+
+        token_documents = list(
+            db.collection("fcm_tokens")
+            .where("active", "==", True)
+            .stream()
+        )
+
+        if not token_documents:
+
+            print("[FCM] No registered devices found.")
+
+            return
+
+        for start in range(0, len(token_documents), 500):
+
+            batch_documents = token_documents[
+                start:start + 500
+            ]
+
+            valid_documents = []
+            tokens = []
+
+            for document in batch_documents:
+
+                token = (document.to_dict() or {}).get("token")
+
+                if token:
+                    tokens.append(token)
+                    valid_documents.append(document)
+
+            if not tokens:
+                continue
+
+            message = messaging.MulticastMessage(
+
+                notification=messaging.Notification(
+                    title="CyberSafe AI Scam Alert",
+                    body=(
+                        "A new suspicious number has been reported. "
+                        "Open CyberSafe to check."
+                    )
+                ),
+
+                data={
+                    "type": "scam_alert",
+                    "title": "CyberSafe AI Scam Alert",
+                    "body": (
+                        "A new suspicious number has been reported. "
+                        "Open CyberSafe to check."
+                    )
+                },
+
+                tokens=tokens
+            )
+
+            response = messaging.send_each_for_multicast(
+                message
+            )
+
+            print(
+                f"[FCM] Sent: {response.success_count}, "
+                f"Failed: {response.failure_count}"
+            )
+
+            for index, send_response in enumerate(
+                response.responses
+            ):
+
+                if not send_response.success:
+
+                    error = send_response.exception
+
+                    error_code = getattr(
+                        error,
+                        "code",
+                        ""
+                    )
+
+                    if error_code in (
+                        "messaging/registration-token-not-registered",
+                        "messaging/invalid-registration-token"
+                    ):
+
+                        valid_documents[index].reference.update({
+                            "active": False
+                        })
+
+                        print(
+                            "[FCM] Invalid device token deactivated."
+                        )
+
+    except Exception as e:
+
+        print(f"[FCM Error] {e}")
+
+
+# --------------------------------------------------
+# COMMUNITY SCAM REPORTING
+# --------------------------------------------------
 
 @app.post("/api/report-number")
 def report_scam_number(request: ScamReportRequest):
 
     if db is None:
+
         raise HTTPException(
             status_code=503,
             detail="Firebase database is unavailable."
         )
 
-    phone_number = normalize_phone_number(request.phone_number)
-
-    if not phone_number:
-        raise HTTPException(
-            status_code=400,
-            detail="Please enter a valid 10-digit phone number."
-        )
+    phone_number = normalize_phone_number(
+        request.phone_number
+    )
 
     reason = request.reason.strip()
 
     if not reason or len(reason) > 200:
+
         raise HTTPException(
             status_code=400,
             detail="Please provide a valid report reason."
         )
 
     try:
+
         collection = db.collection("scam_numbers")
 
         existing = list(
@@ -438,54 +571,79 @@ def report_scam_number(request: ScamReportRequest):
         )
 
         if existing:
+
             document = existing[0]
+
             old_data = document.to_dict() or {}
-            report_count = int(old_data.get("report_count", 0)) + 1
+
+            report_count = int(
+                old_data.get("report_count", 0)
+            ) + 1
 
             document.reference.update({
+
                 "report_count": firestore.Increment(1),
                 "status": "suspicious",
                 "reason": reason,
                 "updated_at": firestore.SERVER_TIMESTAMP
+
             })
 
         else:
+
             report_count = 1
 
             collection.add({
+
                 "phone_number": phone_number,
                 "report_count": report_count,
                 "status": "suspicious",
                 "reason": reason,
                 "created_at": firestore.SERVER_TIMESTAMP,
                 "updated_at": firestore.SERVER_TIMESTAMP
+
             })
 
+        # Notify registered CyberSafe devices.
+        # A notification failure does not undo the saved report.
+        send_scam_alerts()
+
         return {
+
             "success": True,
             "phone_number": phone_number,
             "status": "suspicious",
             "report_count": report_count,
             "message": "Thank you! Your scam report has been submitted."
+
         }
 
     except Exception as e:
+
         print(f"[Scam Report Error] {e}")
 
         raise HTTPException(
             status_code=500,
             detail="Unable to save the scam report."
         )
+
+
+# --------------------------------------------------
+# COMMUNITY REPORT HISTORY
+# --------------------------------------------------
+
 @app.get("/api/reports")
 def get_community_reports():
 
     if db is None:
+
         raise HTTPException(
             status_code=503,
             detail="Firebase database is unavailable."
         )
 
     try:
+
         documents = (
             db.collection("scam_numbers")
             .order_by(
@@ -499,48 +657,60 @@ def get_community_reports():
         reports = []
 
         for document in documents:
+
             data = document.to_dict() or {}
+
             number = data.get("phone_number", "")
 
             reports.append({
+
                 "phone_number": (
                     "******" + number[-4:]
                     if len(number) >= 4
                     else "Hidden"
                 ),
-                "reason": data.get("reason", "Not specified"),
-                "report_count": data.get("report_count", 0),
+
+                "reason": data.get(
+                    "reason",
+                    "Not specified"
+                ),
+
+                "report_count": data.get(
+                    "report_count",
+                    0
+                ),
+
                 "status": "Community reported (unverified)"
+
             })
 
         return {
+
             "success": True,
             "total": len(reports),
             "reports": reports
+
         }
 
     except Exception as e:
+
         print(f"[Community Reports Error] {e}")
 
         raise HTTPException(
             status_code=500,
             detail="Unable to load community reports."
         )
+
+
 # --------------------------------------------------
-# CYBERMITRA CHAT ENDPOINT
+# FIREBASE DEVICE REGISTRATION
 # --------------------------------------------------
-
-import hashlib
-
-
-class DeviceTokenRequest(BaseModel):
-    token: str
-
 
 @app.post("/api/register-device")
 def register_device(request: DeviceTokenRequest):
 
     if db is None:
+
         raise HTTPException(
             status_code=503,
             detail="Firebase database is unavailable."
@@ -549,29 +719,38 @@ def register_device(request: DeviceTokenRequest):
     token = request.token.strip()
 
     if not token or len(token) > 4096:
+
         raise HTTPException(
             status_code=400,
             detail="Invalid Firebase device token."
         )
 
     try:
+
         token_id = hashlib.sha256(
             token.encode("utf-8")
         ).hexdigest()
 
-        db.collection("fcm_tokens").document(token_id).set({
+        db.collection("fcm_tokens").document(
+            token_id
+        ).set({
+
             "token": token,
             "platform": "android",
             "active": True,
             "updated_at": firestore.SERVER_TIMESTAMP
+
         })
 
         return {
+
             "success": True,
             "message": "Device registered successfully."
+
         }
 
     except Exception as e:
+
         print(f"[Device Registration Error] {e}")
 
         raise HTTPException(
@@ -579,12 +758,18 @@ def register_device(request: DeviceTokenRequest):
             detail="Unable to register device."
         )
 
+
+# --------------------------------------------------
+# CYBERMITRA CHAT ENDPOINT
+# --------------------------------------------------
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
 
     user_msg = request.message.strip()
 
     if not user_msg:
+
         raise HTTPException(
             status_code=400,
             detail="Message cannot be empty"
@@ -596,7 +781,6 @@ async def chat_endpoint(request: ChatRequest):
         EMERGENCY_PATTERN.search(user_msg)
     )
 
-    # Protect sensitive credentials.
     if SENSITIVE_PATTERN.search(user_msg):
 
         warning = (
@@ -608,12 +792,13 @@ async def chat_endpoint(request: ChatRequest):
         )
 
         return {
+
             "reply": warning,
             "is_emergency": True,
             "provider": "security_guardrail"
+
         }
 
-    # Gemini AI integration.
     if GEMINI_API_KEY:
 
         try:
@@ -636,6 +821,7 @@ async def chat_endpoint(request: ChatRequest):
             )
 
             payload = {
+
                 "contents": [
                     {
                         "parts": [
@@ -643,10 +829,12 @@ async def chat_endpoint(request: ChatRequest):
                         ]
                     }
                 ],
+
                 "generationConfig": {
                     "temperature": 0.4,
                     "maxOutputTokens": 800
                 }
+
             }
 
             response = requests.post(
@@ -666,9 +854,11 @@ async def chat_endpoint(request: ChatRequest):
                 )
 
                 return {
+
                     "reply": reply_text,
                     "is_emergency": is_emergency,
                     "provider": "gemini_ai"
+
                 }
 
             print(
