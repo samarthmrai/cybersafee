@@ -450,7 +450,7 @@ Message to analyse:
         response = requests.post(
             url,
             json=payload,
-            timeout=20
+            timeout=(10, 120)
         )
 
         response.raise_for_status()
