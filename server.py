@@ -350,7 +350,147 @@ def health_check():
         "model": GEMINI_MODEL,
         "firebase_enabled": db is not None
     }
+# --------------------------------------------------
+# GEMINI AI MESSAGE ANALYSIS
+# --------------------------------------------------
 
+@app.post("/api/analyze-message")
+def analyze_message(request: MessageAnalysisRequest):
+
+    message = request.message.strip()
+
+    if not message:
+        raise HTTPException(
+            status_code=400,
+            detail="Message cannot be empty."
+        )
+
+    if len(message) > 10000:
+        raise HTTPException(
+            status_code=400,
+            detail="Message is too long."
+        )
+
+    # Do not send sensitive information to Gemini.
+    if SENSITIVE_PATTERN.search(message):
+        return {
+            "success": False,
+            "provider": "security_guardrail",
+            "skipped": True,
+            "message": (
+                "Online analysis skipped because the message "
+                "may contain an OTP, PIN, password, or CVV."
+            )
+        }
+
+    if not GEMINI_API_KEY:
+        return {
+            "success": False,
+            "provider": "unavailable",
+            "message": "Online AI analysis is unavailable."
+        }
+
+    prompt = f"""
+You are a cybersecurity message analyser for Indian users.
+
+Analyse the following SMS or message for possible fraud.
+
+Consider the complete context. Do not flag a message just because
+it contains words such as OTP, bank, account, or urgent.
+
+Look for combinations of suspicious signs, such as:
+- Requests to reveal OTPs, passwords, or UPI PINs.
+- Fake bank or government impersonation.
+- Threats of account blocking or legal action.
+- Suspicious payment requests.
+- Deceptive links or requests to install apps.
+- Unrealistic prizes or rewards.
+
+Return ONLY valid JSON in this exact format:
+{{
+  "risk": "LOW RISK",
+  "score": 10,
+  "explanation": "Short explanation.",
+  "advice": "What the user should do."
+}}
+
+Risk levels:
+LOW RISK: 0-29
+SUSPICIOUS: 30-59
+HIGH RISK: 60-100
+
+The score is a risk estimate, not an accuracy percentage.
+
+Message to analyse:
+{message}
+"""
+
+    try:
+        url = (
+            "https://generativelanguage.googleapis.com/"
+            f"v1beta/models/{GEMINI_MODEL}:generateContent"
+            f"?key={GEMINI_API_KEY}"
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 500
+            }
+        }
+
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=20
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        result_text = (
+            data["candidates"][0]
+            ["content"]["parts"][0]["text"]
+            .strip()
+        )
+
+        result = json.loads(result_text)
+
+        risk = str(result.get("risk", "")).upper()
+        score = int(result.get("score", -1))
+
+        if risk not in ("LOW RISK", "SUSPICIOUS", "HIGH RISK"):
+            raise ValueError("Invalid risk level")
+
+        if not 0 <= score <= 100:
+            raise ValueError("Invalid risk score")
+
+        return {
+            "success": True,
+            "provider": "gemini_ai",
+            "risk": risk,
+            "score": score,
+            "explanation": str(result.get("explanation", "")),
+            "advice": str(result.get("advice", "Be cautious."))
+        }
+
+    except Exception as e:
+        print(f"[Message Analysis Error] {e}")
+
+        return {
+            "success": False,
+            "provider": "unavailable",
+            "message": "Online AI analysis failed. Use offline analysis."
+        }
 
 # --------------------------------------------------
 # SCAM PHONE NUMBER CHECKER
