@@ -122,7 +122,9 @@ class ChatRequest(BaseModel):
     message: str
     language: Optional[str] = "en"
     history: Optional[List[ChatMessage]] = []
-
+    
+class MessageAnalysisRequest(BaseModel):
+    message: str
 
 class PhoneCheckRequest(BaseModel):
     phone_number: str
