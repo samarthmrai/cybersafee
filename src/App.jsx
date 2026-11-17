@@ -176,15 +176,32 @@ window.CyberSafeApp = function CyberSafeApp() {
       setIsMobileMenuOpen: setIsMobileMenuOpen
     }),
 
-    // Emergency Banner - Hidden on mobile, visible on desktop
-React.createElement(
-  "div",
-  { className: "hidden md:block" },
-  React.createElement(components.EmergencyBanner, {
-    lang: lang,
-    setCurrentTab: handleTabChange
-  })
-),
+    
+    // Emergency Banner - Hide only on mobile
+    React.createElement(
+      "style",
+      null,
+      "@media (max-width: 767px) {" +
+        ".cybersafe-desktop-emergency-banner {" +
+        "display: none !important;" +
+        "}" +
+      "}" +
+      "@media (min-width: 768px) {" +
+        ".cybersafe-desktop-emergency-banner {" +
+        "display: block !important;" +
+        "}" +
+      "}"
+    ),
+
+    React.createElement(
+      "div",
+      { className: "cybersafe-desktop-emergency-banner" },
+      React.createElement(components.EmergencyBanner, {
+        lang: lang,
+        setCurrentTab: handleTabChange
+      })
+    ),
+
     // Main App Container
     React.createElement(
       "main",
