@@ -176,12 +176,15 @@ window.CyberSafeApp = function CyberSafeApp() {
       setIsMobileMenuOpen: setIsMobileMenuOpen
     }),
 
-    // Top Emergency Banner
-    React.createElement(components.EmergencyBanner, {
-      lang: lang,
-      setCurrentTab: handleTabChange
-    }),
-
+    // Emergency Banner - Hidden on mobile, visible on desktop
+React.createElement(
+  "div",
+  { className: "hidden md:block" },
+  React.createElement(components.EmergencyBanner, {
+    lang: lang,
+    setCurrentTab: handleTabChange
+  })
+),
     // Main App Container
     React.createElement(
       "main",
